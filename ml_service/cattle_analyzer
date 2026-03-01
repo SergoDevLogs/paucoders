@@ -1,0 +1,119 @@
+# cattle_analyzer.py
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import pandas as pd
+from datetime import datetime
+import logging
+import os
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class CattleAnalyzer:
+    """
+    Класс для анализа данных молочного стада.
+    Загружает данные из CSV файлов и предоставляет методы для расчета показателей.
+    """
+    def __init__(self, data_dir='.'):
+        """
+        Инициализация анализатора. Загружает данные из CSV файлов.
+        :param data_dir: Директория, где лежат файлы с данными.
+        """
+        self.data_dir = data_dir
+        self.all_cows = None
+        self.df1 = None
+        self.df2 = None
+        self.df3 = None
+        self.load_data()
+        logger.info("CattleAnalyzer инициализирован. Загружено записей: %d", len(self.all_cows) if self.all_cows is not None else 0)
+
+    def load_data(self):
+        """Загружает и объединяет данные из трех CSV файлов."""
+        try:
+            file1_path = os.path.join(self.data_dir, 'Data Set 1. Хакатон 26.02.2026.csv')
+            file2_path = os.path.join(self.data_dir, 'Data Set 2. Хакатон 26.02.2026.csv')
+            file3_path = os.path.join(self.data_dir, 'Data Set 3. Хакатон 26.02.2026.csv')
+
+            self.df1 = pd.read_csv(file1_path, sep=';', encoding='utf-8')
+            self.df2 = pd.read_csv(file2_path, sep=';', encoding='utf-8')
+            self.df3 = pd.read_csv(file3_path, sep=';', encoding='utf-8')
+
+            self.all_cows = pd.concat([self.df1, self.df2, self.df3], ignore_index=True)
+
+            date_columns = ['Дата рождения', 'Дата архива', 'Дата начала тек.лакт',
+                            'Дата осеменения', 'Дата успешного осеменения',
+                            'Дата запуска тек.лакт', 'Дата ожидаемого запуска', 'Дата ожидаемого отела']
+            for col in date_columns:
+                if col in self.all_cows.columns:
+                    self.all_cows[col] = pd.to_datetime(self.all_cows[col], format='%d.%m.%Y', errors='coerce')
+
+            self.all_cows['Лактация'] = pd.to_numeric(self.all_cows['Лактация'], errors='coerce')
+            self.all_cows['Дни в доении'] = pd.to_numeric(self.all_cows['Дни в доении'], errors='coerce')
+            self.all_cows['Дни стельности'] = pd.to_numeric(self.all_cows['Дни стельности'], errors='coerce')
+
+            logger.info("Данные успешно загружены.")
+
+        except FileNotFoundError as e:
+            logger.error(f"Файл данных не найден: {e}")
+            self.all_cows = pd.DataFrame()
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке данных: {e}")
+            self.all_cows = pd.DataFrame()
+
+    def get_herd_summary(self, target_date_str=None):
+        """
+        Рассчитывает сводку по стаду на указанную дату.
+        :param target_date_str: Дата в формате 'ДД.ММ.ГГГГ'. Если None, используется текущая.
+        :return: Словарь со сводкой по стаду.
+        """
+        if self.all_cows is None or self.all_cows.empty:
+            return {"error": "Данные не загружены"}
+
+        if target_date_str:
+            target_date = pd.to_datetime(target_date_str, format='%d.%m.%Y')
+        else:
+            target_date = datetime.now()
+
+        logger.info(f"Расчет сводки для стада на дату: {target_date.strftime('%d.%m.%Y')}")
+
+        df = self.all_cows.copy()
+
+        active_mask = (
+            (df['Дата архива'].isna()) | (df['Дата архива'] > target_date)
+        )
+
+        df_active = df[active_mask].copy()
+
+        logger.info(f"Найдено {len(df_active)} активных записей (по дате архива).")
+
+
+        status_counts = df_active['Статус коровы'].value_counts().to_dict()
+
+        milking_cows = df_active[df_active['Статус коровы'] == 'Дойная']
+
+        milking_days = milking_cows['Дни в доении'].dropna()
+        avg_milking_days = milking_days.mean() if not milking_days.empty else 0
+
+        pregnant_cows = df_active[df_active['Статус коровы'].isin(['Стельная', 'В сухостое', 'В позднем сухостое'])]
+        valid_pregnant = pregnant_cows.dropna(subset=['Дата успешного осеменения', 'Дата начала тек.лакт'])
+        if not valid_pregnant.empty:
+            service_periods = (valid_pregnant['Дата успешного осеменения'] - valid_pregnant['Дата начала тек.лакт']).dt.days
+            avg_service_period = service_periods.mean()
+        else:
+            avg_service_period = 0
+
+        summary = {
+            'target_date': target_date.strftime('%d.%m.%Y'),
+            'total_active_records': len(df_active),
+            'status_distribution': status_counts,
+            'avg_milking_days': round(avg_milking_days, 1),
+            'avg_service_period': round(avg_service_period, 1),
+        }
+        logger.info(f"Сводка рассчитана: {summary}")
+        return summary
+
+if __name__ == '__main__':
+    analyzer = CattleAnalyzer()
+    summary = analyzer.get_herd_summary('26.02.2026')
+    print(summary)

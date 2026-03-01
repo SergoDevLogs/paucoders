@@ -1,0 +1,54 @@
+.auth-header {
+  aspect-ratio: 1600 / 400; 
+  background: url("./assets/header.svg") center/cover no-repeat;
+  width: 100%;
+  height: auto; 
+  padding: 0 2rem;
+  box-sizing: border-box;
+}
+
+.auth-header-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    position: relative;
+    height: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.logo{
+    position: absolute;
+    left: 0%;
+    top: 20px;
+    background: none;
+}
+
+.profile-wrapper{
+    position: relative;
+    width: 100px;
+    height: 100px;
+}
+
+.frame1{
+    position: absolute;
+    bottom:-20px;
+    left:0;
+}
+
+.frame2{
+    position: absolute;
+    bottom:-30px;
+    left:5px;
+}
+
+.frame3{
+    position: absolute;
+    bottom: -20px;
+    right:0px;
+}
+
+.profile-icon{
+    margin-top: 20px;
+    align-self: center;
+    cursor: pointer;
+}
